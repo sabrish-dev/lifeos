@@ -1,0 +1,12 @@
+# ═══ THE LINE: code goes to GitHub, the life stays home ═══
+# Soul-layer / personal data — NEVER commit
+world-map.json
+dreams/
+insights/
+logs/
+*.log
+
+# runtime artifacts
+__pycache__/
+*.pyc
+.DS_Store
