@@ -27,6 +27,8 @@ MAP = HERE / "world-map.json"
 MEMORY_INDEX = Path.home() / ".claude/projects/-Users-sabrishiyer/memory/MEMORY.md"
 DREAMS = HERE / "dreams"
 STREAKS = DREAMS / ".streaks.json"  # the Dreamer's memory of past dreams
+DEFERRALS = DREAMS / ".deferrals.json"  # {normalized-finding-key: reason} — explicit, dated excuses
+BLOCKER_DAYS = 3  # Insight 2026-07-04 Rev 1: a finding unchanged this long is a blocker, not a report
 
 STOP = {"with", "the", "own", "and", "against", "a", "of", "to", "it", "not", "in", "on", "no"}
 
@@ -148,8 +150,8 @@ def tool_gaps(meta, nodes, edges):
         if missing:
             t.append(("un-ingested-memory", f"{len(missing)} memories exist with no node in the map: {', '.join(missing)}."))
 
-    # the Dreamer's own limits
-    t.append(("dreamer-limits", "This pass is single-shot and structural: exact-token shape matching only, no memory of past dreams, no fuzzy semantic mirror detection. Those live in the LLM layer, which isn't yet scheduled to run nightly."))
+    # the Dreamer's own limits (kept honest: dream-memory + nightly LLM layer landed 2026-07-02..04)
+    t.append(("dreamer-limits", "Structural pass limits: exact-token shape matching only — no fuzzy semantic mirror detection at this layer (the nightly LLM Insight covers some of it); attention-stamping depends on events being logged to attention.log."))
     return t
 
 
@@ -172,13 +174,31 @@ def annotate_streaks(findings, date):
     return sorted(out, key=lambda f: 0 if f[1].endswith("(new)") else 1)
 
 
+def blockers(findings):
+    """Escalation (Insight 2026-07-04): findings at (day >= BLOCKER_DAYS), minus explicit
+    deferrals, stop being reports and become blockers — silent re-dating is forbidden."""
+    norm = lambda kind, msg: f"{kind}|{re.sub(r'\d+', '#', re.sub(r' \((?:new|day \d+)\)$', '', msg))}"
+    deferred = json.loads(DEFERRALS.read_text()) if DEFERRALS.exists() else {}
+    out = []
+    for kind, msg in findings:
+        m = re.search(r"\(day (\d+)\)$", msg)
+        if m and int(m.group(1)) >= BLOCKER_DAYS and norm(kind, msg) not in deferred:
+            out.append((kind, msg))
+    return out
+
+
 def write_dream(date, world, tool, meta, nodes, edges):
     DREAMS.mkdir(exist_ok=True)
     p = DREAMS / f"{date}.md"
+    blk = blockers(world + tool)
     L = [f"# 🌙 Dream — {date}", "",
          f"World-map v{meta['version']} · {len(nodes)} nodes / {len(edges)} edges.",
-         "Structural pass. The reasoning layer turns these into Insight (revelations + actions) and may propose edges back.",
-         "", "## I. Gaps in the world"]
+         "Structural pass. The reasoning layer turns these into Insight (revelations + actions) and may propose edges back."]
+    if blk:
+        L += ["", f"## ⚠️ BLOCKERS — unchanged ≥{BLOCKER_DAYS} days (not reports anymore)",
+              f"These have been re-dated nightly without movement. Each MUST leave this list via its one named action being DONE, or an explicit entry in `dreams/.deferrals.json` ({{key: reason}}). The reasoning layer must lead with these."]
+        L += [f"- **[{k}]** {m}" for k, m in blk]
+    L += ["", "## I. Gaps in the world"]
     for kind, msg in world:
         L.append(f"- **[{kind}]** {msg}")
     L += ["", "## II. Gaps in the tool (self-audit)"]

@@ -29,6 +29,27 @@ BRAIN_ROOT = HERE.parent.parent
 CLAUDE_PROJECTS = Path.home() / ".claude/projects"
 MEM_DIRS = sorted(p for p in CLAUDE_PROJECTS.glob("*/memory") if p.is_dir())
 
+# Attention log — eyes for attention, not just edits (Dreamer Rev 3, 2026-07-02..04).
+# Lines: "YYYY-MM-DD <event> [detail]". Events stamp the nodes they evidence.
+ATTENTION_LOG = HERE / "logs/attention.log"
+EVENT_NODES = {
+    "insight-read": ["brain-lifeos"],                     # reading the morning report = touching the loop
+    "mirror-ritual": ["ritual-mirror", "sabrish", "identity"],  # the ritual = touching the soul layer
+}
+
+
+def attention_dates() -> dict[str, list[str]]:
+    """node_id -> [dates] harvested from attention.log (malformed lines skipped)."""
+    out: dict[str, list[str]] = {}
+    if not ATTENTION_LOG.exists():
+        return out
+    for line in ATTENTION_LOG.read_text().splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and re.match(r"^\d{4}-\d{2}-\d{2}$", parts[0]):
+            for nid in EVENT_NODES.get(parts[1], []):
+                out.setdefault(nid, []).append(parts[0])
+    return out
+
 TYPE_MAP = {"feedback": "value", "project": "project", "reference": "idea"}  # user -> skip
 # secondary/duplicate memory slugs -> the existing node they enrich (attach, don't duplicate)
 ALIAS = {
@@ -137,9 +158,12 @@ def main():
                     edges.append({"from": src, "to": tgt, "rel": "relates_to"})
 
     # ---- Phase A: stamp last_touched (after attach, so new links count) ----
+    # Sources: file mtimes (edits) + attention.log (reading/ritual — being, not output).
+    attn = attention_dates()
     stamped = 0
     for n in d["nodes"]:
         dates = [x for l in n.get("links", []) if (r := resolve(l)) and (x := mtime_date(r))]
+        dates += attn.get(n["id"], [])
         if dates and n.get("last_touched") != max(dates):
             stamped += 1
             if not a.dry_run:
@@ -150,7 +174,7 @@ def main():
     print(f"  memory dirs scanned: {len(MEM_DIRS)}  ({sum(1 for _ in memories)} memories)")
     print(f"  Phase B — attached to existing: {attached}   created: {len(created)} {[n['id'] for n in created]}")
     print(f"           relates_to edges wired: {edged}")
-    print(f"  Phase A — last_touched stamped: {stamped}  (coverage {cov:.0%})")
+    print(f"  Phase A — last_touched stamped: {stamped}  (coverage {cov:.0%}; attention entries for {len(attn)} node(s))")
     if not a.dry_run:
         MAP.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
         print(f"  saved -> {MAP}")
