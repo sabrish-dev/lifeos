@@ -56,13 +56,19 @@ def world_gaps(nodes, edges, today):
     g = []
     t0 = __import__("datetime").date.fromisoformat(today)
 
-    # avoidance from real ingested last_touched: stale high-salience nodes
+    # avoidance — evidence law (Insight 2026-07-05 Rev 1): mtime alone cannot
+    # distinguish "abandoned" from "read daily, never edited". Only nodes with
+    # real attention data (last_attention) produce blocker-grade findings;
+    # mtime-only staleness is reported as UNVERIFIED inference, never a blocker.
     for n in nodes.values():
         lt = n.get("last_touched")
         if lt and n.get("salience", 0) >= 0.6:
             days = (t0 - __import__("datetime").date.fromisoformat(lt)).days
             if days >= 30:
-                g.append(("avoidance", f"'{n['name']}' not edited in {days}d (salience {n['salience']}) — mtime-based: reading/attention doesn't stamp yet, only edits do."))
+                if n.get("last_attention"):
+                    g.append(("avoidance", f"'{n['name']}' untouched {days}d despite attention-tracking (salience {n['salience']}) — evidenced, last attention {n['last_attention']}."))
+                else:
+                    g.append(("avoidance-unverified", f"'{n['name']}' not edited in {days}d (salience {n['salience']}) — mtime-only: inference, not fact; no attention data for this node."))
 
     for i, n in nodes.items():
         if n["type"] == "goal" and not [e for e in in_edges(edges, i) if e["rel"] == "serves"]:
@@ -176,11 +182,14 @@ def annotate_streaks(findings, date):
 
 def blockers(findings):
     """Escalation (Insight 2026-07-04): findings at (day >= BLOCKER_DAYS), minus explicit
-    deferrals, stop being reports and become blockers — silent re-dating is forbidden."""
+    deferrals, stop being reports and become blockers — silent re-dating is forbidden.
+    Unverified (mtime-only) findings are inference, never blockers (Insight 2026-07-05)."""
     norm = lambda kind, msg: f"{kind}|{re.sub(r'\d+', '#', re.sub(r' \((?:new|day \d+)\)$', '', msg))}"
     deferred = json.loads(DEFERRALS.read_text()) if DEFERRALS.exists() else {}
     out = []
     for kind, msg in findings:
+        if kind == "avoidance-unverified":
+            continue
         m = re.search(r"\(day (\d+)\)$", msg)
         if m and int(m.group(1)) >= BLOCKER_DAYS and norm(kind, msg) not in deferred:
             out.append((kind, msg))
@@ -198,9 +207,16 @@ def write_dream(date, world, tool, meta, nodes, edges):
         L += ["", f"## ⚠️ BLOCKERS — unchanged ≥{BLOCKER_DAYS} days (not reports anymore)",
               f"These have been re-dated nightly without movement. Each MUST leave this list via its one named action being DONE, or an explicit entry in `dreams/.deferrals.json` ({{key: reason}}). The reasoning layer must lead with these."]
         L += [f"- **[{k}]** {m}" for k, m in blk]
+    verified = [(k, m) for k, m in world if k != "avoidance-unverified"]
+    unverified = [(k, m) for k, m in world if k == "avoidance-unverified"]
     L += ["", "## I. Gaps in the world"]
-    for kind, msg in world:
+    for kind, msg in verified:
         L.append(f"- **[{kind}]** {msg}")
+    if unverified:
+        L += ["", "## I-b. Unverified (mtime-only — inference, NOT evidence)",
+              "Evidence law (Insight 2026-07-05): mtime cannot distinguish 'abandoned' from 'read daily, never edited'. These are staleness inferences awaiting attention data — never blockers, never accusations. The fix is the attention-stamp, not the life."]
+        for kind, msg in unverified:
+            L.append(f"- **[{kind}]** {msg}")
     L += ["", "## II. Gaps in the tool (self-audit)"]
     for kind, msg in tool:
         L.append(f"- **[{kind}]** {msg}")
@@ -223,8 +239,8 @@ def main():
     tool = tool_gaps(d["meta"], nodes, edges)
     # dream memory: annotate streaks across both domains, then split back
     both = annotate_streaks(world + tool, date)
-    wkinds = {"avoidance", "goal-without-vehicle", "project-without-why", "rta-drift",
-              "unmanaged-wound", "unmeasured-high-salience", "mirror-candidate", "world-orphan"}
+    wkinds = {"avoidance", "avoidance-unverified", "goal-without-vehicle", "project-without-why",
+              "rta-drift", "unmanaged-wound", "unmeasured-high-salience", "mirror-candidate", "world-orphan"}
     world = [f for f in both if f[0] in wkinds]
     tool = [f for f in both if f[0] not in wkinds]
     p = write_dream(date, world, tool, d["meta"], nodes, edges)

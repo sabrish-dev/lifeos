@@ -163,7 +163,10 @@ def main():
     stamped = 0
     for n in d["nodes"]:
         dates = [x for l in n.get("links", []) if (r := resolve(l)) and (x := mtime_date(r))]
-        dates += attn.get(n["id"], [])
+        a_dates = attn.get(n["id"], [])
+        if a_dates and not a.dry_run:
+            n["last_attention"] = max(a_dates)  # real attention evidence — unlocks the avoidance detector
+        dates += a_dates
         if dates and n.get("last_touched") != max(dates):
             stamped += 1
             if not a.dry_run:
