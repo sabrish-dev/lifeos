@@ -207,6 +207,14 @@ def write_dream(date, world, tool, meta, nodes, edges):
         L += ["", f"## ⚠️ BLOCKERS — unchanged ≥{BLOCKER_DAYS} days (not reports anymore)",
               f"These have been re-dated nightly without movement. Each MUST leave this list via its one named action being DONE, or an explicit entry in `dreams/.deferrals.json` ({{key: reason}}). The reasoning layer must lead with these."]
         L += [f"- **[{k}]** {m}" for k, m in blk]
+    # deferral-suppression (Insight 2026-07-07 Rev 2): a finding with a live ruling
+    # on file is routed to the Settled line, never re-emitted into the day-N stream.
+    norm = lambda kind, msg: f"{kind}|{re.sub(r'\d+', '#', re.sub(r' \((?:new|day \d+)\)$', '', msg))}"
+    deferred_keys = set(json.loads(DEFERRALS.read_text())) if DEFERRALS.exists() else set()
+    settled = [(k, m) for k, m in world + tool if norm(k, m) in deferred_keys]
+    world = [(k, m) for k, m in world if norm(k, m) not in deferred_keys]
+    tool = [(k, m) for k, m in tool if norm(k, m) not in deferred_keys]
+
     verified = [(k, m) for k, m in world if k != "avoidance-unverified"]
     unverified = [(k, m) for k, m in world if k == "avoidance-unverified"]
     L += ["", "## I. Gaps in the world"]
@@ -223,6 +231,9 @@ def write_dream(date, world, tool, meta, nodes, edges):
               "These findings have accepted reasons on file. Mention only if the reason has expired or reality contradicts it."]
         for k, reason in deferred.items():
             L.append(f"- `{k.split('|')[0]}` — {reason}")
+    if settled:
+        L += ["", "### Settled findings suppressed from §I this pass (still true, ruling on file):"]
+        L += [f"- [{k}] {m}" for k, m in settled]
     L += ["", "## II. Gaps in the tool (self-audit)"]
     for kind, msg in tool:
         L.append(f"- **[{kind}]** {msg}")
