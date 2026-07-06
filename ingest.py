@@ -65,6 +65,7 @@ ALIAS = {
     "project_content_strategy": "saravana",
     "feedback_saravana_tool_philosophy": "asteria-kernel",
     "agent_orchestration": "asteria-kernel",
+    "daily-rhythm-pointer": "ritual-daily-rhythm",
 }
 WIKILINK = re.compile(r"\[\[([a-z0-9-]+)")
 FM_FIELD = re.compile(r"^(?:\s*)(name|description|type)\s*:\s*(.+?)\s*$", re.M)
