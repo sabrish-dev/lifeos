@@ -35,6 +35,7 @@ ATTENTION_LOG = HERE / "logs/attention.log"
 EVENT_NODES = {
     "insight-read": ["brain-lifeos"],                     # reading the morning report = touching the loop
     "mirror-ritual": ["ritual-mirror", "sabrish", "identity"],  # the ritual = touching the soul layer
+    "session-antara": ["antara", "sanskrit-paninian"],    # every session opens with the invocation + runs ANTARA
 }
 
 

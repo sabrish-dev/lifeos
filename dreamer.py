@@ -217,6 +217,12 @@ def write_dream(date, world, tool, meta, nodes, edges):
               "Evidence law (Insight 2026-07-05): mtime cannot distinguish 'abandoned' from 'read daily, never edited'. These are staleness inferences awaiting attention data — never blockers, never accusations. The fix is the attention-stamp, not the life."]
         for kind, msg in unverified:
             L.append(f"- **[{kind}]** {msg}")
+    deferred = json.loads(DEFERRALS.read_text()) if DEFERRALS.exists() else {}
+    if deferred:
+        L += ["", "## Deferred (settled by explicit ruling — do NOT re-litigate)",
+              "These findings have accepted reasons on file. Mention only if the reason has expired or reality contradicts it."]
+        for k, reason in deferred.items():
+            L.append(f"- `{k.split('|')[0]}` — {reason}")
     L += ["", "## II. Gaps in the tool (self-audit)"]
     for kind, msg in tool:
         L.append(f"- **[{kind}]** {msg}")
