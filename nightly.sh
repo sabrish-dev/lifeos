@@ -22,6 +22,12 @@ mkdir -p logs dreams insights
 DATE=$(date +%F)
 LOG="logs/nightly.log"
 
+# Already-dreamed guard: RunAtLoad fires at every login — never double-dream a day.
+if [[ -s "insights/$DATE.md" ]] && head -1 "insights/$DATE.md" | grep -q '^# 🌅 Insight'; then
+  echo "=== LifeOS nightly $(date): insight for $DATE already exists — skip ===" >> "$LOG"
+  exit 0
+fi
+
 echo "=== LifeOS nightly $(date) ===" >> "$LOG"
 "$PY" ingest.py            >> "$LOG" 2>&1
 "$PY" dreamer.py --date "$DATE" >> "$LOG" 2>&1
