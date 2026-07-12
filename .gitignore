@@ -10,3 +10,6 @@ logs/
 __pycache__/
 *.pyc
 .DS_Store
+
+# review artifacts — contain personal shape strings
+shape-proposals-*.md
